@@ -1,0 +1,12 @@
+## How to set up your environment
+
+# 1) Setting up JDBC
+
+- Download and install XAMPP :
+https://www.apachefriends.org/index.html
+- Download mySQL Connector jar
+for help video: https://www.youtube.com/watch?v=CrHZIW9pnnQ
+- create an external folder with the name: external_libraries
+- then add mySql connector.jar there. After that, right click on .jar -> Add to Build Path
+- after this, it will be added in Referenced Libraries, right click Build Path-> Configure Build Path to see if ti is there
+

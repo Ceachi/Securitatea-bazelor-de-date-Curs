@@ -1,0 +1,15 @@
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:05:27 +0200] "GET /SQLInjectionReferat HTTP/1.1" 302 - http-bio-8080-exec-1 0
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:05:27 +0200] "GET /SQLInjectionReferat/ HTTP/1.1" 200 7070 http-bio-8080-exec-3 62
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:05:27 +0200] "GET /SQLInjectionReferat/database.JPG HTTP/1.1" 200 144174 http-bio-8080-exec-4 14
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:05:27 +0200] "GET /favicon.ico HTTP/1.1" 404 - http-bio-8080-exec-5 0
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:05:54 +0200] "GET /SQLInjectionReferat/userCheck?username=something%27+or+1%3D1+--&password=%27 HTTP/1.1" 200 127 http-bio-8080-exec-6 2348
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:06:14 +0200] "GET /SQLInjectionReferat/userCheck?username=something%27+or+1%3D1+--&password=%27 HTTP/1.1" 200 660 http-bio-8080-exec-8 209
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:06:29 +0200] "GET /SQLInjectionReferat/userCheck?username=%27+or+1%3D1+--+&password=%27 HTTP/1.1" 200 652 http-bio-8080-exec-10 13
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:06:42 +0200] "GET /SQLInjectionReferat/userCheckCorrection?username=something%27+or+1%3D1+--&password=%27 HTTP/1.1" 200 208 http-bio-8080-exec-10 28
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:07:02 +0200] "GET /SQLInjectionReferat/userCheck?username=sandeep%27+and+1%3D0+--&password=%27 HTTP/1.1" 200 226 http-bio-8080-exec-10 12
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:07:29 +0200] "GET /SQLInjectionReferat/userCheck?username=sandeep%27+and+1%3D1+--&password=%27 HTTP/1.1" 200 247 http-bio-8080-exec-10 11
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:07:43 +0200] "GET /SQLInjectionReferat/example0?username=%27ramki%27+UNION+SELECT+*+FROM+User+Where+%271%27%3D%271 HTTP/1.1" 200 215 http-bio-8080-exec-10 26
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:07:57 +0200] "GET /SQLInjectionReferat/example0?username=%27ramki%27+UNION+SELECT+*+FROM+User+Where+%271%27%3D%271%27 HTTP/1.1" 200 668 http-bio-8080-exec-10 78
+0:0:0:0:0:0:0:1 - - [12/Jan/2019:13:08:11 +0200] "GET /SQLInjectionReferat/example0?username=%27ramki%27+UNION+SELECT+*+FROM+User+Where+%271%27%3D%271%27 HTTP/1.1" 200 668 http-bio-8080-exec-10 11
+192.168.1.112 - - [12/Jan/2019:15:12:51 +0200] "GET / HTTP/1.1" 404 - http-bio-8080-exec-2 0
+192.168.1.112 - - [12/Jan/2019:15:12:54 +0200] "GET /HNAP1/ HTTP/1.1" 404 - http-bio-8080-exec-7 0

@@ -1,0 +1,8 @@
+## How to set up your environment
+
+# 1) Setting up JDBC
+
+- Download and install XAMPP :
+https://www.apachefriends.org/index.html
+- Download mySQL Connector jar
+for help video: https://www.youtube.com/watch?v=CrHZIW9pnnQ

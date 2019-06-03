@@ -1,0 +1,36 @@
+--1
+create table tema_casa (
+  id number(4) primary key,
+  enunt varchar2(200) not null,
+  id_curs number(4),
+  deadline date,
+  punctaj number(4, 2),
+  foreign key(id_curs) references curs(id));
+
+--Var 1
+-- din conexinea lui sys:
+grant select on elearn_app_admin.tema_casa to elearn_profesor1;
+grant select on elearn_app_admin.tema_casa to elearn_profesor2;
+grant select on elearn_app_admin.tema_casa to elearn_asistent3;
+
+--var 2
+--sys:
+grant create view to elearn_app_admin;
+
+--app admin:
+create or replace view viz_tema as select * from tema_casa;
+grant select on viz_tema to elearn_profesor1;
+  grant select on viz_tema to elearn_profesor2;
+  grant select on viz_tema to elearn_asistent3;
+
+--profesor1:
+select * from elearn_app_admin.viz_tema;
+
+--3
+create table rezolva (
+  id_tema number(4),
+  id_stud number(4),
+  data_upload date,
+  nota number(4,2),
+  id_corector number(4),
+  primary key(id_tema, id_stud));

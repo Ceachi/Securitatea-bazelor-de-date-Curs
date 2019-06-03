@@ -1,0 +1,231 @@
+--1
+SELECT value FROM v$parameter WHERE name = 'os_authent_prefix';
+
+CREATE user "OPS$COMPUTER_1\USER1" identified externally;
+
+GRANT create session to "OPS$COMPUTER_1\USER1";
+
+CREATE user ELEARN_APP_ADMIN identified by parolaadmin PASSWORD EXPIRE;
+GRANT CREATE SESSION TO ELEARN_APP_ADMIN;
+
+CREATE user elearn_student1 identified by parolastudent1 PASSWORD EXPIRE;
+GRANT CREATE SESSION TO elearn_student1;
+
+CREATE user elearn_student2 identified by parolastudent2 PASSWORD EXPIRE;
+GRANT CREATE SESSION TO elearn_student2;
+
+CREATE user elearn_profesor1 identified by parolaprofesor1 PASSWORD EXPIRE;
+GRANT CREATE SESSION TO elearn_profesor1;
+
+CREATE user elearn_profesor2 identified by profesor2;
+GRANT CREATE SESSION TO elearn_profesor2;
+
+CREATE user elearn_asistent3 identified by parolaasistent3 PASSWORD EXPIRE;
+GRANT CREATE SESSION TO elearn_asistent3;
+
+CREATE user elearn_guest identified by parolaguest PASSWORD EXPIRE;
+GRANT CREATE SESSION TO elearn_guest;
+
+desc dba_users;
+
+SELECT username, authentication_type, account_status, created, expiry_date 
+FROM dba_users
+ORDER BY created desc;
+
+--2
+DESC V$SESSION;
+
+SELECT USERNAME, STATUS FROM V$SESSION 
+WHERE USERNAME LIKE '%ELEARN%' OR USERNAME LIKE '%USER1%';
+
+CREATE SEQUENCE elearn_secv_conex start with 1 increment by 1;
+
+create table elearn_audit_conex (
+  cod_conex number(8) primary key,
+  utilizator varchar2(30),
+  cod_sesiune number(8),
+  metoda_authentif varchar2(40),
+  identitate varchar2(100),
+  host varchar2(30),
+  timp_login date, 
+  timp_logout date);
+  
+Select user from dual;
+
+CREATE OR REPLACE TRIGGER elearn_conex_audit_trigger
+AFTER LOGON ON DATABASE
+BEGIN
+  IF USER LIKE '%ELEARN%' OR USER LIKE '%USER1%' THEN 
+    INSERT INTO elearn_audit_conex 
+    VALUES ( elearn_secv_conex.nextval, user, sys_context('userenv', 'sessionid'),
+     sys_context('userenv', 'authentication_method'),  sys_context('userenv', 'authenticated_identity'),
+     sys_context('userenv', 'host'), sysdate, null);
+     commit;
+  END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER elearn_deconex_audit_trigger
+BEFORE LOGOFF ON DATABASE
+BEGIN
+  IF USER LIKE '%ELEARN%' OR USER LIKE '%USER1%' THEN 
+    UPDATE  elearn_audit_conex 
+    SET timp_logout = sysdate WHERE utilizator = user AND 
+    cod_sesiune = sys_context('userenv', 'sessionid');
+  END IF;
+END;
+/
+
+SELECT * FROM elearn_audit_conex;
+
+SELECT COD_SESIUNE, METODA_AUTHENTIF, IDENTITATE, HOST, 
+to_char(TIMP_LOGIN, 'DD/MM/YYYY HH24:MI:SS') TIMP_LOGIN, 
+to_char(TIMP_LOGOUT, 'DD/MM/YYYY HH24:MI:SS') TIMP_LOGOUT 
+FROM elearn_audit_conex;
+
+--3
+ALTER USER ELEARN_APP_ADMIN QUOTA unlimited ON USERS;
+ALTER USER "OPS$COMPUTER_1\USER1" QUOTA 10M ON USERS;
+ALTER USER elearn_profesor1 QUOTA 2M ON USERS;
+ALTER USER elearn_asistent3 QUOTA 2M ON USERS;
+ALTER USER ELEARN_student1 QUOTA 0m ON USERS;
+ALTER USER ELEARN_guest QUOTA 0m ON USERS;
+
+DESC DBA_TS_QUOTAS;
+SELECT * FROM DBA_TS_QUOTAS;
+
+--4
+CREATE PROFILE elearn_profil_quest limit
+ SESSIONS_PER_USER 3
+ IDLE_TIME 3
+ CONNECT_TIME 5;
+ 
+ALTER USER ELEARN_GUEST PROFILE elearn_profil_quest;
+ 
+CREATE PROFILE elearn_profil_prof_stud limit
+ CPU_PER_CALL 6000
+ SESSIONS_PER_USER 1
+ password_life_time 7
+ FAILED_LOGIN_ATTEMPTS 4;
+ 
+ALTER USER ELEARN_profesor1 PROFILE elearn_profil_prof_stud; 
+ALTER USER ELEARN_student1 PROFILE elearn_profil_prof_stud;
+ALTER USER ELEARN_student2 PROFILE elearn_profil_prof_stud;
+ALTER USER ELEARN_profesor2 PROFILE elearn_profil_prof_stud;
+ALTER USER ELEARN_asistent3 PROFILE elearn_profil_prof_stud;
+
+select * from dba_profiles
+where profile like '%ELEARN%'
+order by profile;
+
+DESC DBA_USERS;
+SELECT USERNAME, PROFILE FROM DBA_USERS;
+
+--5
+CREATE OR REPLACE PROCEDURE ELEARN_plan_consum AS 
+  N NUMBER :=0; 
+BEGIN  
+  DBMS_RESOURCE_MANAGER.CREATE_PENDING_AREA();  
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN(PLAN => 'ELEARN_plan1',
+                    COMMENT => 'Acesta este un plan pentru aplicatia e-learning'); 
+  --grupuri de consum  
+  DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'management', COMMENT => 'Acesta grupeaza sesiunile utilizatorilor care administreaza aplicatia sau catalogul');     
+  DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'tutori', COMMENT => 'Acesta grupeaza sesiunile utilizatorilor care predau'); 
+  DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'receptori', COMMENT => 'Acesta grupeaza sesiunile utilizatorilor care asimileaza informatii'); 
+ 
+  --se va crea doar daca nu exista deja            
+  SELECT COUNT(*) INTO n 
+  FROM DBA_RSRC_CONSUMER_GROUPS 
+  WHERE CONSUMER_GROUP='OTHER_GROUPS';  
+  
+  IF n=0 THEN   
+    DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'OTHER_GROUPS', COMMENT => 'Acesta grupeaza RESTUL LUMII');  
+  END IF; 
+ 
+  --mapari statice utilizatori pe grupuri consum, nu pot fi mapati pe grupul OTHER_GROUPS  
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_APP_ADMIN', 'management');  
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'OPS$COMPUTER_1\USER1', 'management'); 
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_profesor1', 'tutori');  
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_asistent3', 'tutori'); 
+ 
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_student1', 'receptori');  
+ 
+  --directivele de plan pentru fiecare grup de consum  
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'management', 
+                              COMMENT => 'directiva de plan pt gr management', MGMT_P1 => 20); 
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'tutori',        
+                              COMMENT => 'directiva de plan pt gr tutori', MGMT_P1 => 30);    
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'receptori',        
+                              COMMENT => 'directiva de plan pt gr receptori', MGMT_P1 => 40); 
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'OTHER_GROUPS',        
+                              COMMENT => 'directiva de plan pt gr restul lumii', MGMT_P1 => 10); 
+ 
+  DBMS_RESOURCE_MANAGER.VALIDATE_PENDING_AREA();  
+  DBMS_RESOURCE_MANAGER.SUBMIT_PENDING_AREA(); 
+
+END; 
+/
+
+SELECT USERNAME,INITIAL_RSRC_CONSUMER_GROUP  FROM DBA_USERS  WHERE USERNAME LIKE 'ELEARN_%' ORDER BY CREATED;  
+
+EXEC ELEARN_plan_consum;
+
+SELECT DISTINCT A.USERNAME, C.GROUP_OR_SUBPLAN,
+C.MGMT_P1, C.PLAN
+FROM DBA_RSC_PLAN_DIRECTIVES C LEFT OUTER JOIN DBA_USERS A ON (C.GROUP_OR_SUBPLAN=A.INITIAL_RSC_CONSUMER_GROUP)
+ORDER BY A.USERNAME NULLS LAST;
+
+
+
+---lab4
+
+GRANT CREATE TABLE TO ELEARN_APP_ADMIN;
+
+GRANT resource to ELEARN_APP_ADMIN;
+
+alter user elearn_app_admin quota unlimited on SYSTEM;
+
+revoke resource from elearn_app_admin;
+
+GRANT CREATE ANY TABLE TO ELEARN_APP_ADMIN;
+
+GRANT DROP ANY TABLE TO ELEARN_APP_ADMIN;
+
+grant create any index to ELEARN_APP_ADMIN;
+
+select owner, object_name from all_objects where owner like '%ELEARN%';
+
+alter user elearn_profesor2 quota 2m on users;
+
+alter database default tablespace users;
+
+GRANT CREATE VIEW TO ELEARN_APP_ADMIN ;
+
+GRANT SELECT ON ELEARN_profesor1.FEEDBACK TO
+ELEARN_APP_ADMIN WITH GRANT OPTION;
+GRANT SELECT ON ELEARN_profesor2.FEEDBACK TO
+ELEARN_APP_ADMIN WITH GRANT OPTION;
+GRANT SELECT ON ELEARN_asistent3.FEEDBACK TO
+ELEARN_APP_ADMIN WITH GRANT OPTION;
+
+GRANT SELECT ON ELEARN_APP_ADMIN.VIZ_FEEDB TO
+ELEARN_student1;
+
+GRANT CREATE TRIGGER TO ELEARN_APP_ADMIN;
+
+GRANT INSERT ON ELEARN_profesor1.FEEDBACK TO
+ELEARN_APP_ADMIN WITH GRANT OPTION;
+GRANT INSERT ON ELEARN_profesor2.FEEDBACK TO
+ELEARN_APP_ADMIN WITH GRANT OPTION;
+GRANT INSERT ON ELEARN_asistent3.FEEDBACK TO ELEARN_APP_ADMIN
+WITH GRANT OPTION;
+
+GRANT INSERT ON ELEARN_APP_ADMIN.VIZ_FEEDB TO
+ELEARN_student1;
+
+GRANT CREATE PROCEDURE TO ELEARN_APP_ADMIN;
+GRANT DELETE ON ELEARN_profesor1.FEEDBACK TO
+ELEARN_APP_ADMIN WITH GRANT OPTION;
+
+GRANT EXECUTE ON ELEARN_APP_ADMIN.DELETE_SPAM TO
+ELEARN_asistent3;

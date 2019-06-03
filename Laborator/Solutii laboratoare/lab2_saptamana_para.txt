@@ -1,0 +1,157 @@
+
+--1
+select value from v$parameter where name='audit_trail';
+
+show parameter audit_trail;
+
+alter system set audit_trail=db,extended scope=spfile;
+
+audit select table;
+
+select dbms_lob.substr(sqltext, 4000, 1)
+from AUD$
+where OBJ$NAME in ('EMPLOYEES', 'JOBS', 'LOCATIONS');
+
+select count(*), OBJ$NAME, USERID
+from AUD$
+where OBJ$NAME in ('EMPLOYEES', 'JOBS', 'LOCATIONS')
+group by rollup(OBJ$NAME, USERID);
+
+--2
+alter system set audit_trail = xml scope=spfile;
+noaudit all;
+audit select, insert, update, delete on hr.employees by access whenever not successful;
+
+insert into employees values (1500, 'Tom');
+insert into employees values (206, 'Jane');
+insert into employees values (206, 'Jane', 'Smith', 'jane@hr.com', '22.33.44', '07-JUN-05', 
+                             'AC_ACCOUNT', 200, 0, 205, 110);
+
+--3
+
+create table tab_audit_emp (
+	id_secv number(4) primary key,
+	utilizator varchar2(20),
+	sesiune number(10),
+	host varchar2(100),
+	timp date,
+	delta_inreg number(5,2));
+
+create sequence secv_aud_emp start with 1 increment by 1;
+
+create or replace trigger auditare_employees_before
+before delete on hr.employees
+declare
+	st number;
+	sir varchar2(200);
+begin
+	select count(*) into st from hr.employees;
+	select substr(sys_context('userenv', 'current_sql'), 1, 200) into sir from dual;
+
+	dbms_output.put_line('Before: ' || st);
+	dbms_output.put_line('Current sql: ' || sir);
+
+	insert into tab_audit_emp values(secv_aud_emp.nextval, sys_context('userenv', 'session_user'),
+                                   sys_context('userenv', 'sessionid'), sys_context('userenv', 'host'),
+				   sysdate, st);
+end;
+/
+
+create or replace trigger auditare_employees_after
+after delete on hr.employees
+declare
+	st number;
+	st_vechi number;
+	sesiune_actuala varchar2(100);
+	id_vechi number;
+begin
+	select count(*) into st from hr.employees;
+
+	select sys_context('userenv', 'sessionid') into sesiune_actuala from dual;
+	select max(id_secv) into id_vechi from tab_audit_emp 
+	where sesiune=sesiune_actuala;
+	
+	select delta_inreg into st_vechi from tab_audit_emp 
+	where sesiune=sesiune_actuala and id_secv=id_vechi;
+
+	dbms_output.put_line('AFTER: ' || st);
+	update tab_audit_emp
+	set delta_inreg = st_vechi - st
+	where sesiune=sesiune_actuala
+	and id_secv = id_vechi;
+end;
+/
+
+desc user_triggers;
+
+select trigger_name, status 
+from user_triggers
+where trigger_name like 'AUDITARE_EMPLOYEES';
+
+delete from employees where salary < 3000;
+
+select * from tab_audit_emp;
+
+select * from hr.employees;
+
+--4
+create or replace trigger salariu_imens
+after insert or update or delete of salary on hr.employees
+for each row
+when (new.salary > 20000)
+begin
+    insert into tab_audit_emp values (secv_aud_emp.nextval, 
+    sys_context('userenv', 'session_user'), sys_context('userenv', 'sessionid'),
+    sys_context('userenv', 'host', sysdate, 99);
+end;
+/
+
+Sys:
+update hr.employees set salary=35000 where first_name like 'T%';
+
+Hr:
+update employees set salary=25000 where first_name like 'S%'; 
+
+Sys:
+select t.*, to_char(timp, 'dd/mm/yyyy hh24:mi:ss') Ora from tab_audit_emp t;
+
+--5
+create or replace procedure proc_audit_alert(object_schema varchar2, 
+                        object_name varchar2, policy_name varchar2) 
+as
+begin
+    dbms_output.put_line('Se incearca modificarea sefului in baza de date!');
+end;
+/
+
+create or replace procedure proc_audit_sef as
+begin
+    dbms_fga.drop_policy(object_schema => 'HR', object_name => 'DEPARTMENTS',
+        policy_name => 'policy_sef');
+    dbms_fga.add_policy (
+        object_schema => 'HR',
+        object_name => 'DEPARTMENTS',
+        policy_name => 'policy_sef',
+        audit_column => 'MANAGER_ID',
+        enable => false,
+        statement_types => 'UPDATE',
+        handler_module => 'proc_audit_alert');
+        
+    dbms_fga.enable_policy(object_schema => 'HR',object_name => 'DEPARTMENTS', 
+    policy_name => 'policy_sef');
+end;
+/
+
+execute proc_audit_sef;
+
+hr: update departments set manager_id=100 where department_name = 'IT';
+
+sys: 
+select enabled, policy_name
+from all_audit_policies
+where object_name ='DEPARTMENTS';
+
+desc dba_fga_audit_trail;
+
+select db_user, userhost, policy_name, sql_text
+from dba_fga_audit_trail;

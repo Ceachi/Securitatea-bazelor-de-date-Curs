@@ -1,0 +1,9 @@
+INDEX VERSION 1.4+E:\Bogdan\Eclipse Workspaces\referat BD SQL Injection\.metadata\.plugins\org.eclipse.wst.jsdt.core\indexes
+2799767094.index
+3237757110.index
+3823724542.index
+4014396412.index
+1464655006.index
+1728404547.index
+4014396412.index
+2223307850.index

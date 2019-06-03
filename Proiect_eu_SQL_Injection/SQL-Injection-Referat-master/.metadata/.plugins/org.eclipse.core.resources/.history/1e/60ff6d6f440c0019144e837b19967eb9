@@ -1,0 +1,13 @@
+# How to set up this project
+
+1) Follow the steps from here:
+https://o7planning.org/en/10133/run-maven-java-web-application-in-tomcat-maven-plugin
+also: https://www.dev2qa.com/how-to-deploy-a-maven-project-to-tomcat-from-eclipse/
+
+
+
+
+
+SQL Injection:
+http://www.unixwiz.net/techtips/sql-injection.html
+https://www.guru99.com/learn-sql-injection-with-practical-example.html

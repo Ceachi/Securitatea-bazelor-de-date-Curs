@@ -1,0 +1,195 @@
+--1
+
+SELECT value FROM v$parameter WHERE name = 'os_authent_prefix';
+
+create user "OPS$COMPUTER_1\USER1" identified externally;
+
+grant create session to "OPS$COMPUTER_1\USER1";
+
+create user elearn_app_admin identified by parolaadmin password expire;
+grant create session to elearn_app_admin;
+
+create user elearn_student1 identified by parolastudent password expire;
+grant create session to elearn_student1;
+
+create user elearn_student2 identified by parolastudent password expire;
+grant create session to elearn_student2;
+
+create user elearn_profesor1 identified by parolaprofesor password expire;
+grant create session to elearn_profesor1;
+
+create user elearn_profesor2 identified by profesor;
+grant create session to elearn_profesor2;
+
+create user elearn_asistent3 identified by parolaprofesor password expire;
+grant create session to elearn_asistent3;
+
+create user elearn_guest identified by parolaguest password expire;
+grant create session to elearn_guest;
+
+desc dba_users;
+
+select username, authentication_type, ACCOUNT_STATUS, created, EXPIRY_DATE
+from dba_users
+order by created desc;
+
+--2
+select username, status
+from v$session
+where username like '%ELEARN%' or username like '%USER1%'; 
+
+create sequence elearn_secv_conex start with 1 increment by 1;
+
+drop table elearn_audit_conex;
+
+create table elearn_audit_conex (
+  cod_conex number(8) primary key,
+  utilizator varchar2(30),
+  cod_sesiune number(8),
+  metoda_authentif varchar2(40),
+  identitate varchar2(100),
+  host varchar2(30),
+  timp_login date, 
+  timp_logout date);
+
+select user from dual;  
+  
+create or replace trigger elearn_conex_audit_trigger
+after logon on database
+begin
+  if user like '%ELEARN%' or user like '%USER1%' then
+    insert into elearn_audit_conex
+    values(elearn_secv_conex.nextval, user, sys_context('userenv', 'sessionid'),
+           sys_context('userenv', 'authentication_method'),
+           sys_context('userenv', 'authenticated_identity'),
+           sys_context('userenv', 'host'), sysdate, null);
+    commit;
+  end if;
+end;
+/
+
+create or replace trigger elearn_deconex_audit_trigger
+before logoff on database
+begin
+  if user like '%ELEARN%' or user like '%USER1%' then
+    update elearn_audit_conex
+    set timp_logout=sysdate
+    where utilizator=user 
+    and cod_sesiune = sys_context('userenv', 'sessionid');
+  end if;
+end;
+/
+
+select cod_sesiune, metoda_authentif, identitate, host, 
+       to_char(timp_login, 'dd/mm/yyyy hh24:mi:ss') timp_login,
+       to_char(timp_logout, 'dd/mm/yyyy hh24:mi:ss') timp_logout
+from elearn_audit_conex;
+
+--3
+alter user elearn_app_admin quota unlimited on users;
+alter user "OPS$COMPUTER_1\USER1" quata 10M on users;
+
+alter user elearn_profesor1 quota 2M on users;
+alter user elearn_profesor2 quota 2M on users;
+alter user elearn_asistent3 quota 2M on users;
+alter user elearn_guest quota 0 on users; 
+alter user elearn_student1 quota 0 on users; 
+
+desc dba_ts_quotas;
+
+select * from dba_ts_quotas;
+
+--4
+create profile elearn_profil_guest limit
+  sessions_per_user 5
+  idle_time 3
+  connect_time 5;
+  
+alter user elearn_guest profile elearn_profil_guest;
+
+create profile elearn_profil_prof_stud limit
+  cpu_per_call 6000
+  sessions_per_user 1
+  password_life_time 7
+  failed_login_attempts 4;
+  
+alter user elearn_student1 profile elearn_profil_prof_stud;
+alter user elearn_profesor1 profile elearn_profil_prof_stud;
+alter user elearn_profesor2 profile elearn_profil_prof_stud;
+alter user elearn_asistent3 profile elearn_profil_prof_stud;
+
+alter user hr identified by hr account unlock;
+
+select username, status
+from v$session
+where username like '%ELEARN%' or username like '%USER1%'; 
+
+desc dba_profiles;
+
+select * from dba_profiles
+where profile like 'ELEARN%'
+order by profile;
+
+desc dba_users;
+
+select username, profile
+from dba_users
+where username like 'ELEARN%'
+order by created;
+
+--5
+CREATE OR REPLACE PROCEDURE ELEARN_plan_consum AS 
+  N NUMBER :=0; 
+BEGIN  
+  DBMS_RESOURCE_MANAGER.CREATE_PENDING_AREA();  
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN(PLAN => 'ELEARN_plan1',
+                    COMMENT => 'Acesta este un plan pentru aplicatia e-learning'); 
+  --grupuri de consum  
+  DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'management', COMMENT => 'Acesta grupeaza sesiunile utilizatorilor care administreaza aplicatia sau catalogul');     
+  DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'tutori', COMMENT => 'Acesta grupeaza sesiunile utilizatorilor care predau'); 
+  DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'receptori', COMMENT => 'Acesta grupeaza sesiunile utilizatorilor care asimileaza informatii'); 
+ 
+  --se va crea doar daca nu exista deja            
+  SELECT COUNT(*) INTO n 
+  FROM DBA_RSRC_CONSUMER_GROUPS 
+  WHERE CONSUMER_GROUP='OTHER_GROUPS';  
+  
+  IF n=0 THEN   
+    DBMS_RESOURCE_MANAGER.CREATE_CONSUMER_GROUP(CONSUMER_GROUP => 'OTHER_GROUPS', COMMENT => 'Acesta grupeaza RESTUL LUMII');  
+  END IF; 
+ 
+  --mapari statice utilizatori pe grupuri consum, nu pot fi mapati pe grupul OTHER_GROUPS  
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_APP_ADMIN', 'management');  
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'OPS$COMPUTER_1\USER1', 'management'); 
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_profesor1', 'tutori');  
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_asistent3', 'tutori'); 
+ 
+  DBMS_RESOURCE_MANAGER.SET_CONSUMER_GROUP_MAPPING(DBMS_RESOURCE_MANAGER.ORACLE_USER, 'ELEARN_student1', 'receptori');  
+ 
+  --directivele de plan pentru fiecare grup de consum  
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'management', 
+                              COMMENT => 'directiva de plan pt gr management', MGMT_P1 => 20); 
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'tutori',        
+                              COMMENT => 'directiva de plan pt gr tutori', MGMT_P1 => 30);    
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'receptori',        
+                              COMMENT => 'directiva de plan pt gr receptori', MGMT_P1 => 40); 
+  DBMS_RESOURCE_MANAGER.CREATE_PLAN_DIRECTIVE(PLAN => 'ELEARN_plan1', GROUP_OR_SUBPLAN => 'OTHER_GROUPS',        
+                              COMMENT => 'directiva de plan pt gr restul lumii', MGMT_P1 => 10); 
+ 
+  DBMS_RESOURCE_MANAGER.VALIDATE_PENDING_AREA();  
+  DBMS_RESOURCE_MANAGER.SUBMIT_PENDING_AREA(); 
+
+END; 
+/
+
+SELECT USERNAME,INITIAL_RSRC_CONSUMER_GROUP  
+FROM DBA_USERS  WHERE USERNAME LIKE 'ELEARN_%' ORDER BY CREATED;
+
+execute elearn_plan_consum;
+
+
+SELECT DISTINCT A.USERNAME,C.group_or_subplan, 
+C.MGMT_P1,C.PLAN 
+FROM DBA_RSRC_PLAN_DIRECTIVES C LEFT OUTER JOIN DBA_USERS A ON (C.group_or_subplan=A.INITIAL_RSRC_CONSUMER_GROUP) 
+--WHERE C.PLAN LIKE '%ELEARN_%' 
+ORDER BY A.USERNAME NULLS LAST; 

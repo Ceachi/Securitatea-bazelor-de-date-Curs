@@ -1,0 +1,177 @@
+sys:
+
+create user elearn_app_admin identified by admin;
+grant connect to elearn_app_admin;
+
+create user elearn_profesor1 identified by profesor;
+grant connect to elearn_profesor1;
+
+create user elearn_profesor2 identified by profesor;
+grant connect to elearn_profesor2;
+
+create user elearn_asistent3 identified by asistent;
+grant connect to elearn_asistent3;
+
+create user elearn_student1 identified by student;
+grant connect to elearn_student1;
+
+create user elearn_student2 identified by student;
+grant connect to elearn_student2;
+
+create user elearn_student3 identified by student;
+grant connect to elearn_student3;
+
+grant create table to elearn_app_admin;
+grant create index to elearn_app_admin;
+
+alter database default tablespace users;
+
+alter user elearn_app_admin quota unlimited on users;
+
+grant select on elearn_app_admin.tema_casa to elearn_profesor1;
+grant select on elearn_app_admin.tema_casa to elearn_profesor2;
+grant select on elearn_app_admin.tema_casa to elearn_asistent3;
+
+create role sel_tema;
+grant select on elearn_app_admin.tema_casa to sel_tema;
+grant sel_tema to elearn_profesor1, elearn_profesor2, elearn_asistent3;
+
+revoke select on elearn_app_admin.tema_casa from elearn_profesor1;
+
+desc dba_role_privs;
+select * from dba_role_privs where grantee like '%ELEARN%';
+
+--2
+grant update(deadline) on elearn_app_admin.tema_casa to elearn_profesor1;
+grant update(deadline) on elearn_app_admin.tema_casa to elearn_profesor2;
+grant update(deadline) on elearn_app_admin.tema_casa to elearn_asistent3;
+
+grant update(deadline) on elearn_app_admin.viz_tema to elearn_profesor1;
+grant update(deadline) on elearn_app_admin.viz_tema to elearn_profesor2;
+grant update(deadline) on elearn_app_admin.viz_tema to elearn_asistent3;
+
+
+revoke update on elearn_app_admin.tema_casa from elearn_profesor1;
+grant update(deadline) on elearn_app_admin.tema_casa to sel_tema;
+
+grant create procedure to elearn_app_admin;
+
+---------------------------------
+
+elearn_app_admin:
+
+create table tema_casa (
+  id number(4) primary key,
+  enunt varchar2(200) not null,
+  id_curs number(4),
+  deadline date,
+  punctaj number(4,2),
+  --foreign key(id_curs) references curs(id)
+  );
+  
+select * from session_privs;  
+select * from session_roles; 
+
+CREATE TABLE CURS
+(id number(6) primary key,
+denumire varchar2(30) NOT NULL,
+an_studiu number(1) NOT NULL,
+semestru number(1) NOT NULL,
+nr_credite number(1) NOT NULL,
+forma_evaluare VARCHAR2(10) DEFAULT 'EXAMEN',
+ore_curs number(2) DEFAULT 28,
+ore_laborator number(2) DEFAULT 14,
+ore_seminar number(2) DEFAULT 0);
+INSERT INTO CURS VALUES (1,'SECURITATEA BAZELOR DE
+DATE',6,1,5,'E',28,14,0);
+INSERT INTO ELEARN_APP_ADMIN.CURS VALUES (2,'RETELE DE
+CALCULATOARE',3,2,5,'E',28,28,0);
+
+select * from curs;
+
+insert into tema_casa values(1, 'Recapitulare: Sa se rezolve ...', 1, sysdate+3, 0.25);
+insert into tema_casa values(2, 'Introducere: Sa se scrie un program ...', 1, sysdate+6, 0.5);
+
+select * from tema_casa;
+select * from viz_tema;
+
+create or replace procedure proc_notare (codstud number, codtema number, codcorector number, notadata number) 
+is
+  verif_ok number(1) := -1;
+  contor1 number(1) := -1;
+  contor2 number(1) := -1;
+begin
+  select count(*) into contor1
+  from tema_casa tc, rezolva r
+  where tc.id = r.id_tema
+  and r.id_stud=codstud
+  and tc.id=codtema;
+  
+  select count(r.nota) into contor2
+  from rezolva r
+  where r.id_stud=codstud
+  and r.id_tema=codtema;
+  
+  if contor1 = 0 then
+    dbms_output.put_line('Eroare: nu sunt respectate conditiile de notare, studentul nu a depus tema');
+  else
+    if contor2 >= 1 then 
+      dbms_output.put_line('Eroare: nu sunt respectate conditiile de notare, tema a fost deja notata');
+    else 
+      update rezolva 
+      set nota=notadata, id_corector = codcorector
+      where id_stud=codstud and id_tema = codtema;
+      commit;
+   end if;
+ end if;
+ 
+ exception
+  when others then dbms_output.put_line('Eroare: ' || SQLERRM);
+end;
+/
+
+grant execute on elearn_app_admin.proc_notare to elearn_profesor1;
+grant execute on elearn_app_admin.proc_notare to elearn_profesor2;
+grant execute on elearn_app_admin.proc_notare to elearn_asistent3;
+
+-------------------------------
+
+elearn_profesor1
+
+select * from user_tab_privs;
+
+select * from elearn_app_admin.tema_casa;
+
+select * from session_privs;
+select * from session_roles;
+
+update elearn_app_admin.tema_casa 
+set deadline = deadline + 7
+where id=2;
+commit;
+
+commit;
+
+select * from elearn_app_admin.tema_casa;
+
+execute elearn_app_admin.proc_notare(1,1,1,10);
+
+--------------------------------
+
+elearn_asistent3
+
+select * from elearn_app_admin.tema_casa;
+
+update elearn_app_admin.tema_casa 
+set deadline = deadline + 21
+where id=1;
+
+commit;
+
+----------------------------------
+
+elearn_student2
+
+select * from user_col_privs ;
+
+insert into elearn_app_admin.rezolva (id_tema, id_stud, data_upload) values (1, 1, sysdate);
